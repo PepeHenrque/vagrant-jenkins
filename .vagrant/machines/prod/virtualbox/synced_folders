@@ -1,0 +1,1 @@
+{"virtualbox":{"/home/vagrant/app":{"guestpath":"/home/vagrant/app","hostpath":"C:/Users/otavi/OneDrive/Desktop/vagrant-jenkins/app","disabled":false,"__vagrantfile":true},"/vagrant":{"guestpath":"/vagrant","hostpath":"C:/Users/otavi/OneDrive/Desktop/vagrant-jenkins","disabled":false,"__vagrantfile":true}}}
