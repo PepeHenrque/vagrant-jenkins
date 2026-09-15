@@ -1,26 +1,22 @@
 pipeline {
     agent any
 
-    tools {
-        nodejs 'node'
-    }
-
     stages {
         stage('Instalar Dependências') {
             steps {
-                bat 'npm ci'
+                sh 'npm ci'
             }
         }
 
         stage('Build') {
             steps {
-                bat 'npm run build'
+                sh 'npm run build'
             }
         }
 
         stage('Teste') {
             steps {
-                bat 'npm test -- --runInBand'
+                sh 'npm test -- --runInBand'
             }
         }
     }
