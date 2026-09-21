@@ -1,0 +1,6 @@
+cat > .gitignore <<'EOF'
+.vagrant/
+node_modules/
+npm-debug.log*
+*.log
+EOF

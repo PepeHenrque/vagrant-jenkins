@@ -1,0 +1,12 @@
+{
+  "name": "app-prod-exemplo",
+  "version": "1.0.0",
+  "description": "App Node.js de exemplo para teste no ambiente de producao",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "build": "node --check index.js",
+    "test": "node --check index.js"
+  },
+  "license": "MIT"
+}
