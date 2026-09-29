@@ -1,138 +1,150 @@
 # Projeto Vagrant + Jenkins
 
-Ambiente com duas VMs provisionadas via **Vagrant**, usando um único `Vagrantfile`
-e `config.vm.define` para diferenciar cada máquina.
+Ambiente com duas máquinas virtuais Ubuntu criadas pelo Vagrant. A primeira
+executa o Jenkins e a segunda representa o servidor de produção da aplicação
+Node.js.
 
-| VM        | Hostname  | IP              | Memória | CPU | Softwares            |
-|-----------|-----------|-----------------|---------|-----|-----------------------|
-| jenkins   | jenkins   | 192.168.56.10   | 1024 MB | 2   | Java 17, Jenkins, Node.js 20 |
-| prod      | prod      | 192.168.56.20   | 1024 MB | 1   | Node.js 20, OpenSSH server  |
+| VM | Nome no VirtualBox | IP | Memória | CPU | Softwares |
+|---|---|---|---:|---:|---|
+| `jenkins` | `dupla-jenkins-host` | `192.168.56.10` | 1024 MB | 2 | Java 21, Jenkins e Node.js 20 |
+| `prod` | `dupla-prod-app` | `192.168.56.20` | 1024 MB | 1 | Node.js 20 e OpenSSH Server |
 
-## Estrutura do repositório
+## Estrutura
 
-```
+```text
 .
-├── Vagrantfile
-├── app/
-│   ├── index.js          # app Node.js de exemplo
-│   └── package.json
-└── vagrant/
-    └── scripts/
-        ├── jenkins.sh    # provisionamento da VM jenkins
-        └── prod.sh       # provisionamento da VM prod
+|-- Vagrantfile
+|-- Jenkinsfile
+|-- app/
+|   |-- index.js
+|   |-- package.json
+|   `-- package-lock.json
+`-- vagrant/
+    `-- scripts/
+        |-- jenkins.sh
+        `-- prod.sh
 ```
 
 ## Pré-requisitos
 
-- [Vagrant](https://www.vagrantup.com/downloads)
-- [VirtualBox](https://www.virtualbox.org/wiki/Downloads) (provider padrão usado neste Vagrantfile)
+- Vagrant
+- VirtualBox
 
-## Como usar
+## Subindo o ambiente
 
-Subir as duas VMs de uma vez:
+Na pasta do projeto, execute:
 
-```bash
+```powershell
 vagrant up
 ```
 
-Subir apenas uma VM específica:
+Comandos úteis:
 
-```bash
+```powershell
+vagrant status
+vagrant ssh jenkins
+vagrant ssh prod
+vagrant halt
+```
+
+As máquinas também podem ser iniciadas separadamente:
+
+```powershell
 vagrant up jenkins
 vagrant up prod
 ```
 
-Acessar cada máquina:
+## Acessando o Jenkins
 
-```bash
-vagrant ssh jenkins
-vagrant ssh prod
+O Jenkins fica disponível em:
+
+```text
+http://192.168.56.10:8080
 ```
 
-Verificar status:
+A senha inicial pode ser consultada com:
 
-```bash
-vagrant status
-```
-
-Destruir o ambiente:
-
-```bash
-vagrant destroy -f
-```
-
-## VM Jenkins
-
-- Instala Java 17 (dependência do Jenkins), Jenkins e Node.js 20 via `vagrant/scripts/jenkins.sh`.
-- Interface web disponível em: **http://192.168.56.10:8080**
-- A senha inicial de administrador é exibida ao final do provisionamento
-  (`vagrant up jenkins`), ou pode ser obtida depois com:
-
-```bash
+```powershell
 vagrant ssh jenkins -c "sudo cat /var/lib/jenkins/secrets/initialAdminPassword"
 ```
 
-## VM Prod
+## Preparando o acesso SSH ao servidor de produção
 
-- Instala Node.js 20 e o servidor OpenSSH via `vagrant/scripts/prod.sh`.
-- A pasta `app/` do repositório é sincronizada automaticamente para
-  `/home/vagrant/app` dentro da VM (via `prod.vm.synced_folder`), e o
-  script de provisionamento já roda `npm install` se encontrar um
-  `package.json`.
+O deploy do Pipeline usa SSH e SCP. Portanto, o usuário `jenkins` precisa ter
+uma chave autorizada na VM `prod`.
 
-Para testar o app dentro do ambiente de produção:
+Gere a chave na VM Jenkins:
 
-```bash
+```powershell
+vagrant ssh jenkins -c "sudo -u jenkins ssh-keygen -t rsa -b 4096 -f /var/lib/jenkins/.ssh/id_rsa -N ''"
+```
+
+Copie a chave pública para a VM de produção:
+
+```powershell
+$jenkinsPublicKey = (vagrant ssh jenkins -c "sudo cat /var/lib/jenkins/.ssh/id_rsa.pub").Trim()
+vagrant ssh prod -c "echo '$jenkinsPublicKey' >> /home/vagrant/.ssh/authorized_keys && chmod 600 /home/vagrant/.ssh/authorized_keys"
+```
+
+Teste a conexão:
+
+```powershell
+vagrant ssh jenkins -c "sudo -u jenkins ssh -o StrictHostKeyChecking=accept-new vagrant@192.168.56.20 'hostname && node -v'"
+```
+
+## Criando o Pipeline
+
+No Jenkins, crie um trabalho do tipo **Pipeline** e configure:
+
+- Definição: **Pipeline script from SCM**
+- SCM: **Git**
+- Repository URL: `https://github.com/PepeHenrque/vagrant-jenkins.git`
+- Credentials: nenhuma, pois o repositório é público
+- Branch Specifier: `*/main`
+- Script Path: `Jenkinsfile`
+
+Depois de salvar, clique em **Construir agora**.
+
+O Pipeline executa as seguintes etapas:
+
+1. Instala as dependências com `npm ci`.
+2. Valida o código nos estágios de build e teste.
+3. Copia a pasta `app` para `/home/vagrant/app-prod` na VM `prod`.
+4. Instala as dependências e inicia a aplicação em segundo plano.
+
+Quando a construção terminar com sucesso, acesse:
+
+```text
+http://192.168.56.20:3000
+```
+
+Para consultar o log da aplicação:
+
+```powershell
+vagrant ssh prod -c "cat /home/vagrant/app-prod/app.log"
+```
+
+## Teste manual da aplicação
+
+Além do deploy do Pipeline, a pasta local `app/` é sincronizada com
+`/home/vagrant/app` na VM `prod`. Para executar essa cópia manualmente:
+
+```powershell
 vagrant ssh prod
-cd app
+cd /home/vagrant/app
 npm start
 ```
 
-Em outro terminal (na sua máquina host), teste o acesso:
+A cópia sincronizada em `/home/vagrant/app` é diferente do deploy automático,
+que utiliza `/home/vagrant/app-prod`.
 
-```bash
-curl http://192.168.56.20:3000
+## Removendo o ambiente
+
+Para apagar as duas máquinas virtuais criadas por este projeto:
+
+```powershell
+vagrant destroy -f
 ```
 
-## Extra (opcional): conexão SSH entre o host Jenkins e a VM prod
-
-Isso simula o Jenkins fazendo deploy/comandos remotos na VM de produção.
-
-1. Gere um par de chaves SSH dentro da VM Jenkins, usando o usuário `jenkins`:
-
-```bash
-vagrant ssh jenkins
-sudo -u jenkins ssh-keygen -t rsa -b 4096 -f /var/lib/jenkins/.ssh/id_rsa -N ""
-sudo cat /var/lib/jenkins/.ssh/id_rsa.pub
-```
-
-2. Copie a chave pública exibida e adicione-a aos hosts autorizados da VM `prod`:
-
-```bash
-exit                     # sai da VM jenkins
-vagrant ssh prod
-mkdir -p ~/.ssh && chmod 700 ~/.ssh
-echo "<COLE_A_CHAVE_PUBLICA_AQUI>" >> ~/.ssh/authorized_keys
-chmod 600 ~/.ssh/authorized_keys
-```
-
-3. Teste a conexão a partir da VM Jenkins:
-
-```bash
-exit                     # sai da VM prod
-vagrant ssh jenkins
-sudo -u jenkins ssh vagrant@192.168.56.20 "hostname && node -v"
-```
-
-Se a conexão funcionar sem pedir senha, o Jenkins já está apto a executar
-jobs de deploy (via plugin **Publish Over SSH**, **SSH Agent** ou steps
-`sh "ssh vagrant@192.168.56.20 ..."` em um `Jenkinsfile`) diretamente na
-VM de produção.
-
-## Observações
-
-- Os IPs usados (`192.168.56.10` e `192.168.56.20`) são endereços de rede
-  privada (`private_network`) do VirtualBox — ajuste-os no `Vagrantfile`
-  caso conflitem com sua rede local.
-- O box utilizado é o `ubuntu/jammy64` (Ubuntu Server 22.04 LTS), conforme
-  requisito do projeto.
+Os endereços `192.168.56.10` e `192.168.56.20` pertencem à rede privada do
+VirtualBox. O box utilizado é o `ubuntu/jammy64`.
