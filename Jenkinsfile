@@ -27,32 +27,39 @@ pipeline {
         stage('Teste') {
             steps {
                 dir('app') {
-                    sh 'npm test'
+                    sh 'npm test -- --runInBand'
                 }
             }
         }
 
         stage('Deploy com SCP') {
             steps {
-                sh '''
-                    set -e
+                sshagent(['deploy-key']) {
+                    sh '''
+                        set -e
 
-                    echo "Criando diretório da aplicação na produção..."
-                    ssh -o StrictHostKeyChecking=no \
-                        ${DEPLOY_USER}@${DEPLOY_HOST} \
-                        "mkdir -p ${DEPLOY_PATH}"
+                        echo "Testando conexão com a VM de produção..."
+                        ssh -o StrictHostKeyChecking=no \
+                            ${DEPLOY_USER}@${DEPLOY_HOST} \
+                            "hostname"
 
-                    echo "Copiando arquivos para a VM de produção..."
-                    scp -o StrictHostKeyChecking=no -r app/* \
-                        ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/
+                        echo "Criando diretório da aplicação..."
+                        ssh -o StrictHostKeyChecking=no \
+                            ${DEPLOY_USER}@${DEPLOY_HOST} \
+                            "mkdir -p ${DEPLOY_PATH}"
 
-                    echo "Instalando dependências na produção..."
-                    ssh -o StrictHostKeyChecking=no \
-                        ${DEPLOY_USER}@${DEPLOY_HOST} \
-                        "cd ${DEPLOY_PATH} && npm ci"
+                        echo "Copiando arquivos com SCP..."
+                        scp -o StrictHostKeyChecking=no -r app/* \
+                            ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/
 
-                    echo "Deploy concluído com sucesso!"
-                '''
+                        echo "Instalando dependências na produção..."
+                        ssh -o StrictHostKeyChecking=no \
+                            ${DEPLOY_USER}@${DEPLOY_HOST} \
+                            "cd ${DEPLOY_PATH} && npm ci"
+
+                        echo "Deploy concluído com sucesso!"
+                    '''
+                }
             }
         }
     }
