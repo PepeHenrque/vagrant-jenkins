@@ -1,76 +1,34 @@
-pipeline {
+```pipeline {
     agent any
 
     environment {
-        DEPLOY_HOST = '192.168.56.20'
-        DEPLOY_USER = 'vagrant'
-        DEPLOY_PATH = '/home/vagrant/app'
+        PROD = 'vagrant@192.168.56.20'
+        SSH_OPTS = '-o StrictHostKeyChecking=accept-new'
     }
 
     stages {
         stage('Instalar Dependências') {
-            steps {
-                dir('app') {
-                    sh 'npm ci'
-                }
-            }
+            steps { dir('app') { sh 'npm ci' } }
         }
-
         stage('Build') {
-            steps {
-                dir('app') {
-                    sh 'npm run build'
-                }
-            }
+            steps { dir('app') { sh 'npm run build' } }
         }
-
         stage('Teste') {
-            steps {
-                dir('app') {
-                    sh 'npm test -- --runInBand'
-                }
-            }
+            steps { dir('app') { sh 'npm test' } }
         }
-
-        stage('Deploy com SCP') {
+        stage('Deploy') {
             steps {
-                sshagent(['deploy-key']) {
-                    sh '''
-                        set -e
-
-                        echo "Testando conexão com a VM de produção..."
-                        ssh -o StrictHostKeyChecking=no \
-                            ${DEPLOY_USER}@${DEPLOY_HOST} \
-                            "hostname"
-
-                        echo "Criando diretório da aplicação..."
-                        ssh -o StrictHostKeyChecking=no \
-                            ${DEPLOY_USER}@${DEPLOY_HOST} \
-                            "mkdir -p ${DEPLOY_PATH}"
-
-                        echo "Copiando arquivos com SCP..."
-                        scp -o StrictHostKeyChecking=no -r app/* \
-                            ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/
-
-                        echo "Instalando dependências na produção..."
-                        ssh -o StrictHostKeyChecking=no \
-                            ${DEPLOY_USER}@${DEPLOY_HOST} \
-                            "cd ${DEPLOY_PATH} && npm ci"
-
-                        echo "Deploy concluído com sucesso!"
-                    '''
-                }
+                sh '''
+                    ssh $SSH_OPTS $PROD "rm -rf /home/vagrant/app-prod"
+                    scp $SSH_OPTS -r app $PROD:/home/vagrant/app-prod
+                    ssh $SSH_OPTS $PROD "cd /home/vagrant/app-prod && npm ci && (pkill -f '[n]ode index.js' || true) && sleep 1 && (setsid nohup node index.js > app.log 2>&1 < /dev/null &)"
+                '''
             }
         }
     }
 
     post {
-        success {
-            echo 'Pipeline concluída com sucesso, incluindo o deploy via SCP!'
-        }
-
-        failure {
-            echo 'Pipeline falhou. Verifique os logs acima.'
-        }
+        success { echo 'Deploy feito! App em http://192.168.56.20:3000' }
+        failure { echo 'Pipeline falhou. O deploy não foi feito.' }
     }
-}
+}```
