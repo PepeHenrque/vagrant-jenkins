@@ -14,7 +14,7 @@ Vagrant.configure("2") do |config|
     jenkins.vm.network "private_network", ip: "192.168.56.10"
 
     jenkins.vm.provider "virtualbox" do |vb|
-      vb.name   = "jenkins-host"
+      vb.name   = "dupla-jenkins-host"
       vb.memory = 1024
       vb.cpus   = 2
     end
@@ -37,7 +37,7 @@ Vagrant.configure("2") do |config|
     prod.vm.network "private_network", ip: "192.168.56.20"
 
     prod.vm.provider "virtualbox" do |vb|
-      vb.name   = "prod-app"
+      vb.name   = "dupla-prod-app"
       vb.memory = 1024
       vb.cpus   = 1
     end

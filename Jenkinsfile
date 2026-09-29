@@ -21,7 +21,7 @@ pipeline {
                 sh '''
                     ssh $SSH_OPTS $PROD "rm -rf /home/vagrant/app-prod"
                     scp $SSH_OPTS -r app $PROD:/home/vagrant/app-prod
-                    ssh $SSH_OPTS $PROD "cd /home/vagrant/app-prod && npm ci && (pkill -f '[n]ode index.js' || true) && sleep 1 && (setsid nohup node index.js > app.log 2>&1 < /dev/null &)"
+                    ssh $SSH_OPTS $PROD "cd /home/vagrant/app-prod && npm ci && (pkill -f '^node index.js$' || true) && sleep 1 && (setsid nohup node index.js > app.log 2>&1 < /dev/null &)"
                 '''
             }
         }

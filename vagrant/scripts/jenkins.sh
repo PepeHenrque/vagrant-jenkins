@@ -5,6 +5,9 @@
 # ---------------------------------------------------------------
 set -e
 
+# Evita que uma chave antiga interrompa o provisionamento ao executá-lo novamente.
+sudo rm -f /etc/apt/sources.list.d/jenkins.list
+
 echo ">>> Atualizando pacotes..."
 sudo apt-get update -y
 
@@ -14,14 +17,14 @@ sudo apt-get install -y curl wget gnupg2 ca-certificates apt-transport-https sof
 # ---------------------------------------------------------------
 # Java (necessário para o Jenkins)
 # ---------------------------------------------------------------
-echo ">>> Instalando OpenJDK 17..."
-sudo apt-get install -y openjdk-17-jdk
+echo ">>> Instalando OpenJDK 21..."
+sudo apt-get install -y openjdk-21-jdk
 
 # ---------------------------------------------------------------
 # Jenkins
 # ---------------------------------------------------------------
 echo ">>> Adicionando repositório e chave do Jenkins..."
-curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key | sudo tee \
+curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io-2026.key | sudo tee \
   /usr/share/keyrings/jenkins-keyring.asc > /dev/null
 
 echo "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] https://pkg.jenkins.io/debian-stable binary/" | \
