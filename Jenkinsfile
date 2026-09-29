@@ -1,4 +1,4 @@
-```pipeline {
+pipeline {
     agent any
 
     environment {
@@ -31,4 +31,4 @@
         success { echo 'Deploy feito! App em http://192.168.56.20:3000' }
         failure { echo 'Pipeline falhou. O deploy não foi feito.' }
     }
-}```
+}
