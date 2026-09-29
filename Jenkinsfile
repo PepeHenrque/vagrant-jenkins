@@ -1,6 +1,12 @@
 pipeline {
     agent any
 
+    environment {
+        DEPLOY_HOST = '192.168.56.20'
+        DEPLOY_USER = 'vagrant'
+        DEPLOY_PATH = '/home/vagrant/app'
+    }
+
     stages {
         stage('Instalar Dependências') {
             steps {
@@ -25,11 +31,35 @@ pipeline {
                 }
             }
         }
+
+        stage('Deploy com SCP') {
+            steps {
+                sh '''
+                    set -e
+
+                    echo "Criando diretório da aplicação na produção..."
+                    ssh -o StrictHostKeyChecking=no \
+                        ${DEPLOY_USER}@${DEPLOY_HOST} \
+                        "mkdir -p ${DEPLOY_PATH}"
+
+                    echo "Copiando arquivos para a VM de produção..."
+                    scp -o StrictHostKeyChecking=no -r app/* \
+                        ${DEPLOY_USER}@${DEPLOY_HOST}:${DEPLOY_PATH}/
+
+                    echo "Instalando dependências na produção..."
+                    ssh -o StrictHostKeyChecking=no \
+                        ${DEPLOY_USER}@${DEPLOY_HOST} \
+                        "cd ${DEPLOY_PATH} && npm ci"
+
+                    echo "Deploy concluído com sucesso!"
+                '''
+            }
+        }
     }
 
     post {
         success {
-            echo 'Pipeline executado com sucesso!'
+            echo 'Pipeline concluída com sucesso, incluindo o deploy via SCP!'
         }
 
         failure {
